@@ -12,6 +12,7 @@ import (
 )
 
 func Start(addr string) {
+	//database connection
 	db, err := sql.Open("sqlite3", "./db/app")
 	if err != nil {
 		log.Fatal("Database not loaded: ", err)
@@ -21,12 +22,16 @@ func Start(addr string) {
 	if err := db.Ping(); err != nil {
 		log.Fatal("Database not responding: ", err)
 	}
-
 	log.Println("Database connected successfully!")
+
+	//creating router and handlers
+	addUserHandler := handlers.NewUserHandler(db)
 
 	router := chi.NewRouter()
 	router.Get("/test", handlers.TestHandler)
+	router.Post("/addUser", addUserHandler.AddUser)
 
+	//starting server
 	log.Printf("Server starting on http://localhost%s\n", addr)
 
 	if err := http.ListenAndServe(addr, router); err != nil {
