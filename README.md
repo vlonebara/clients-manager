@@ -4,7 +4,7 @@
 
 ## Стек
 
-- Go
+- Go 1.26.1
 - SQLite
 - `database/sql`
 - [chi](https://github.com/go-chi/chi) — HTTP-роутер
@@ -16,12 +16,16 @@
 clients-manager/
 ├── cmd/
 │   └── app/
-│       └── main.go              # Точка входа
+│       └── main.go                  # Точка входа
 ├── db/
-│   └── app                      # Файл SQLite-базы
+│   └── app                         # Файл SQLite-базы
 ├── internal/
-│   ├── handlers/                # HTTP-обработчики
-│   └── server/                  # Настройка и запуск сервера
+│   ├── handlers/
+│   │   ├── AddUserHandler.go       # Создание пользователя
+│   │   ├── GetUsersHandler.go      # Получение списка пользователей
+│   │   └── TestHandler.go          # Проверка работы сервера
+│   └── server/
+│       └── server.go               # Настройка и запуск сервера
 ├── go.mod
 └── go.sum
 ```
@@ -56,10 +60,18 @@ http://localhost:8080
 GET /test
 ```
 
+Маршрут возвращает host из входящего HTTP-запроса.
+
 Пример:
 
 ```bash
 curl http://localhost:8080/test
+```
+
+Пример ответа:
+
+```text
+localhost:8080
 ```
 
 ### Создание пользователя
@@ -97,14 +109,54 @@ curl -X POST http://localhost:8080/addUser \
 
 При успешном создании сервер возвращает статус `201 Created` и JSON с данными нового пользователя. Пароль не возвращается в ответе: в базе сохраняется только bcrypt-хеш.
 
+Пример ответа:
+
+```json
+{
+  "id": 1,
+  "name": "Кирилл",
+  "email": "kirill@example.com",
+  "role": "admin",
+  "login": "kirill"
+}
+```
+
 Допустимые роли:
 
 - `manager`
 - `admin`
 
+### Получение списка пользователей
+
+```http
+GET /users
+```
+
+Маршрут возвращает список пользователей в JSON. Пароль и `password_hash` в ответ не включаются. Пользователи возвращаются в порядке возрастания `id`.
+
+Пример:
+
+```bash
+curl http://localhost:8080/users
+```
+
+Пример ответа:
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Кирилл",
+    "email": "kirill@example.com",
+    "role": "admin",
+    "login": "kirill"
+  }
+]
+```
+
 ## Таблица пользователей
 
-Для работы создания пользователей в SQLite должна быть таблица `users`:
+Для работы создания и получения пользователей в SQLite должна быть таблица `users`:
 
 ```sql
 CREATE TABLE users (
