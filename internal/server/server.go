@@ -25,14 +25,15 @@ func Start(addr string) {
 	log.Println("Database connected successfully!")
 
 	//creating router and handlers
-	addUserHandler := handlers.NewUserHandler(db)
+	UserHandler := handlers.NewUserHandler(db)
 
 	router := chi.NewRouter()
 	router.Get("/test", handlers.TestHandler)
-	router.Post("/addUser", addUserHandler.AddUser)
+	router.Post("/addUser", UserHandler.AddUser)
+	router.Get("/users", UserHandler.GetUsersHandler)
 
 	//starting server
-	log.Printf("Server starting on http://localhost%s\n", addr)
+	log.Printf("Server started on http://localhost%s\n", addr)
 
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatal("Server stopped with error: ", err)
