@@ -1,174 +1,78 @@
 # Clients Manager
 
-Небольшое HTTP-приложение на Go для управления пользователями. Данные пользователей хранятся в SQLite.
+Clients Manager — небольшой HTTP-сервис на Go для создания пользователей и просмотра списка. Данные хранятся в SQLite; пароли перед сохранением хешируются с помощью bcrypt.
+
+## Возможности
+
+- создать пользователя через `POST /addUser`;
+- получить список пользователей через `GET /users`;
+- проверить доступность сервера через `GET /test`.
+
+Пароль и его хеш не включаются в ответы API.
+
+## Архитектура
+
+```text
+cmd/app/main.go                 точка входа и запуск сервера
+internal/server/server.go       подключение SQLite и настройка HTTP-маршрутов
+internal/handlers/              обработчики HTTP-запросов
+  add_user.go                   создание пользователя и хеширование пароля
+  get_users.go                  выдача списка пользователей
+  test.go                       проверочный маршрут
+db/app                         SQLite-база данных
+```
+
+Точка входа запускает сервер. Сервер открывает SQLite через `database/sql`, создаёт маршрутизатор chi и связывает маршруты с обработчиками. Обработчик создания пользователя преобразует JSON-запрос, хеширует пароль через bcrypt и записывает пользователя в базу. При чтении списка выбираются только публичные поля пользователя.
 
 ## Стек
 
-- Go 1.26.1
-- SQLite
-- `database/sql`
-- [chi](https://github.com/go-chi/chi) — HTTP-роутер
-- [bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt) — безопасное хеширование паролей
-
-## Структура проекта
-
-```text
-clients-manager/
-├── cmd/
-│   └── app/
-│       └── main.go                  # Точка входа
-├── db/
-│   └── app                         # Файл SQLite-базы
-├── internal/
-│   ├── handlers/
-│   │   ├── AddUserHandler.go       # Создание пользователя
-│   │   ├── GetUsersHandler.go      # Получение списка пользователей
-│   │   └── TestHandler.go          # Проверка работы сервера
-│   └── server/
-│       └── server.go               # Настройка и запуск сервера
-├── go.mod
-└── go.sum
-```
+- Go 1.26.1+
+- `net/http` и `database/sql`
+- [chi](https://github.com/go-chi/chi) для маршрутизации
+- SQLite через `github.com/mattn/go-sqlite3`
+- bcrypt через `golang.org/x/crypto/bcrypt`
 
 ## Запуск
 
-Клонируйте репозиторий и перейдите в его корневой каталог:
+Нужен Go 1.26.1 или новее. Выполняйте команды из корня репозитория: приложение открывает базу по относительному пути `./db/app`.
 
 ```bash
 git clone https://github.com/vlonebara/clients-manager.git
 cd clients-manager
-```
-
-Установите зависимости и запустите приложение:
-
-```bash
 go mod download
 go run ./cmd/app
 ```
 
-После запуска сервер доступен по адресу:
+Сервер запустится на `http://localhost:8080`.
 
-```text
-http://localhost:8080
-```
+## API
 
-## Маршруты
-
-### Проверка работы сервера
-
-```http
-GET /test
-```
-
-Маршрут возвращает host из входящего HTTP-запроса.
-
-Пример:
+### Проверка сервера
 
 ```bash
-curl http://localhost:8080/test
+curl -i http://localhost:8080/test
 ```
 
-Пример ответа:
-
-```text
-localhost:8080
-```
+Возвращает host запроса обычным текстом.
 
 ### Создание пользователя
 
-```http
-POST /addUser
-Content-Type: application/json
+```bash
+curl -i -X POST http://localhost:8080/addUser \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Кирилл","email":"kirill@example.com","role":"manager","login":"kirill","password":"change-me"}'
 ```
 
-Пример тела запроса:
+Допустимые роли: `manager` и `admin`. При успешном создании возвращается `201 Created` и объект с полями `id`, `name`, `email`, `role` и `login`. Пароль в ответе отсутствует.
 
-```json
-{
-  "name": "Кирилл",
-  "email": "kirill@example.com",
-  "role": "admin",
-  "login": "kirill",
-  "password": "123456789qwer"
-}
-```
-
-Пример запроса через `curl`:
+### Список пользователей
 
 ```bash
-curl -X POST http://localhost:8080/addUser \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Кирилл",
-    "email": "kirill@example.com",
-    "role": "admin",
-    "login": "kirill",
-    "password": "123456789qwer"
-  }'
+curl -i http://localhost:8080/users
 ```
 
-При успешном создании сервер возвращает статус `201 Created` и JSON с данными нового пользователя. Пароль не возвращается в ответе: в базе сохраняется только bcrypt-хеш.
+Возвращает JSON-массив пользователей, отсортированный по `id`. В ответе нет пароля и его хеша.
 
-Пример ответа:
+## Схема SQLite
 
-```json
-{
-  "id": 1,
-  "name": "Кирилл",
-  "email": "kirill@example.com",
-  "role": "admin",
-  "login": "kirill"
-}
-```
-
-Допустимые роли:
-
-- `manager`
-- `admin`
-
-### Получение списка пользователей
-
-```http
-GET /users
-```
-
-Маршрут возвращает список пользователей в JSON. Пароль и `password_hash` в ответ не включаются. Пользователи возвращаются в порядке возрастания `id`.
-
-Пример:
-
-```bash
-curl http://localhost:8080/users
-```
-
-Пример ответа:
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Кирилл",
-    "email": "kirill@example.com",
-    "role": "admin",
-    "login": "kirill"
-  }
-]
-```
-
-## Таблица пользователей
-
-Для работы создания и получения пользователей в SQLite должна быть таблица `users`:
-
-```sql
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL CHECK (role IN ('manager', 'admin')),
-    login TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL
-);
-```
-
-## Важное замечание
-
-При отправке данных используй `POST` и JSON в теле запроса. Не передавай пароль в URL-параметрах, например `?password=...`.
+В базе `db/app` должны быть таблицы `users` и `clients`. Таблица `users` содержит `id`, `name`, `email`, `role`, `login` и `password_hash`; `email` и `login` уникальны, а `role` ограничена значениями `manager` и `admin`. Таблица `clients` сейчас не используется HTTP-маршрутами.
