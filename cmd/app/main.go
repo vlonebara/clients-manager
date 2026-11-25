@@ -15,5 +15,9 @@ func main() {
 	config := Config{
 		PORT: ":8080",
 	}
-	server.Start(config.PORT)
+	err := server.Start(config.PORT)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }

@@ -1,52 +1,50 @@
 # Clients Manager
 
-Небольшое HTTP-приложение на Go для управления пользователями. Данные пользователей хранятся в SQLite.
+Небольшое REST API на Go для приложения по управлению клиентской базой и заказами. Проект находится в разработке. Сейчас сервер подключается к SQLite и предоставляет маршрут проверки работы.
 
 ## Стек
 
-- Go
-- SQLite
-- `database/sql`
+- Go 1.26.1
+- SQLite и `database/sql`
 - [chi](https://github.com/go-chi/chi) — HTTP-роутер
-- [bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt) — безопасное хеширование паролей
+- [go-sqlite3](https://github.com/mattn/go-sqlite3) — драйвер SQLite
 
 ## Структура проекта
 
 ```text
 clients-manager/
-├── cmd/
-│   └── app/
-│       └── main.go              # Точка входа
-├── db/
-│   └── app                      # Файл SQLite-базы
+├── cmd/app/main.go                     # Точка входа и адрес сервера
+├── db/app                              # Файл SQLite-базы
 ├── internal/
-│   ├── handlers/                # HTTP-обработчики
-│   └── server/                  # Настройка и запуск сервера
+│   ├── handlers/test_server_handler.go # Обработчик проверки сервера
+│   └── server/
+│       ├── routes.go                   # Регистрация маршрутов
+│       └── server.go                   # Подключение БД и запуск сервера
 ├── go.mod
 └── go.sum
 ```
 
+`main` передаёт адрес в `server.Start`. Сервер открывает базу, проверяет подключение и запускает HTTP-сервер с маршрутизатором из `routes.go`. Ошибки запуска возвращаются в `main` и выводятся в лог.
+
 ## Запуск
 
-Клонируйте репозиторий и перейдите в его корневой каталог:
+Для сборки необходимы Go 1.26.1 или новее, включённый CGO и доступный компилятор C для `go-sqlite3`.
+
+Клонируй репозиторий и перейди в его корневой каталог:
 
 ```bash
 git clone https://github.com/vlonebara/clients-manager.git
 cd clients-manager
 ```
 
-Установите зависимости и запустите приложение:
+Установи зависимости и запусти приложение:
 
 ```bash
 go mod download
 go run ./cmd/app
 ```
 
-После запуска сервер доступен по адресу:
-
-```text
-http://localhost:8080
-```
+Сервер слушает порт `8080`. Путь к базе `./db/app` задан относительно текущего рабочего каталога, поэтому команду запуска нужно выполнять из корня проекта. SQLite-файл содержит таблицы `users` и `clients`. Подключение к базе проверяется при старте, создание схемы и миграции пока не реализованы.
 
 ## Маршруты
 
@@ -56,67 +54,10 @@ http://localhost:8080
 GET /test
 ```
 
-Пример:
-
 ```bash
-curl http://localhost:8080/test
+curl -i http://localhost:8080/test
 ```
 
-### Создание пользователя
+При успешном запросе сервер возвращает `200 OK`, `Content-Type: text/plain; charset=utf-8` и значение заголовка `Host` в теле ответа. Для показанного запроса это `localhost:8080`.
 
-```http
-POST /addUser
-Content-Type: application/json
-```
-
-Пример тела запроса:
-
-```json
-{
-  "name": "Кирилл",
-  "email": "kirill@example.com",
-  "role": "admin",
-  "login": "kirill",
-  "password": "123456789qwer"
-}
-```
-
-Пример запроса через `curl`:
-
-```bash
-curl -X POST http://localhost:8080/addUser \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Кирилл",
-    "email": "kirill@example.com",
-    "role": "admin",
-    "login": "kirill",
-    "password": "123456789qwer"
-  }'
-```
-
-При успешном создании сервер возвращает статус `201 Created` и JSON с данными нового пользователя. Пароль не возвращается в ответе: в базе сохраняется только bcrypt-хеш.
-
-Допустимые роли:
-
-- `manager`
-- `admin`
-
-## Таблица пользователей
-
-Для работы создания пользователей в SQLite должна быть таблица `users`:
-
-```sql
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL CHECK (role IN ('manager', 'admin')),
-    login TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL
-);
-```
-
-## Важное замечание
-
-При отправке данных используй `POST` и JSON в теле запроса. Не передавай пароль в URL-параметрах, например `?password=...`.
+Маршруты для управления пользователями, клиентами и заказами ещё не реализованы.
